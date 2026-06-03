@@ -378,6 +378,50 @@ describe("oclif compatibility dispatch", () => {
     expect(result.stdout).not.toContain("$ nemoclaw sandbox channels start <name> <channel>");
   });
 
+  it("uses the nemocuga alias binary name in native oclif help", () => {
+    const result = spawnSync(
+      process.execPath,
+      ["bin/nemocuga.js", "sandbox", "channels", "start", "--help"],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          NO_COLOR: "1",
+        },
+      },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("$ nemocuga sandbox channels start <name> <channel>");
+    expect(result.stdout).not.toContain("$ nemoclaw sandbox channels start <name> <channel>");
+  });
+
+  it("nemocuga bin pre-selects the cuga agent via NEMOCLAW_AGENT", () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        "-e",
+        "process.env.NEMOCLAW_AGENT='';require('./bin/nemocuga.js');console.log('AGENT='+process.env.NEMOCLAW_AGENT);console.log('INVOKED='+process.env.NEMOCLAW_INVOKED_AS);process.exit(0);",
+      ],
+      {
+        cwd: process.cwd(),
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          NO_COLOR: "1",
+          // Prevent the CLI from trying to actually run a command.
+          NEMOCLAW_DISABLE_AUTO_DISPATCH: "1",
+        },
+      },
+    );
+
+    // The bin file unconditionally sets the env vars before requiring the CLI;
+    // we assert those side-effects regardless of CLI exit status.
+    expect(result.stdout).toContain("AGENT=cuga");
+    expect(result.stdout).toContain("INVOKED=nemocuga");
+  });
+
   it("keeps nested internal commands routable through native oclif help", () => {
     const result = spawnSync(
       process.execPath,

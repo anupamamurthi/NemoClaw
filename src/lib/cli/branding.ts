@@ -51,11 +51,16 @@ const AGENT_PRODUCT_BRANDING: Record<string, ProductBranding> = {
     product: "Hermes",
     uninstallGoodbye: "Hermes has left the tidepool.",
   },
+  cuga: {
+    display: "NemoCuga",
+    product: "CUGA",
+    uninstallGoodbye: "CUGA dismissed. Until the next workflow.",
+  },
 };
 
 const DEFAULT_AGENT = "openclaw";
 const DEFAULT_CLI_NAME = "nemoclaw";
-const KNOWN_CLI_NAMES = new Set(["nemoclaw", "nemohermes"]);
+const KNOWN_CLI_NAMES = new Set(["nemoclaw", "nemohermes", "nemocuga"]);
 
 function resolveInvokedCliName(): string {
   const raw = process.env.NEMOCLAW_INVOKED_AS;

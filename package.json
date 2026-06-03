@@ -5,7 +5,8 @@
   "license": "Apache-2.0",
   "bin": {
     "nemoclaw": "./bin/nemoclaw.js",
-    "nemohermes": "./bin/nemohermes.js"
+    "nemohermes": "./bin/nemohermes.js",
+    "nemocuga": "./bin/nemocuga.js"
   },
   "oclif": {
     "bin": "nemoclaw",

@@ -1,0 +1,137 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Permissive policy for CUGA — applied by `shields down`.
+# All known CUGA-relevant endpoints opened with access: full (no L7 filtering).
+# Filesystem: include_workdir: true makes the sandbox home directory writable.
+#
+# WARNING: This policy disables most sandbox security restrictions.
+# Do not use in production.
+
+version: 1
+
+filesystem_policy:
+  include_workdir: true
+  read_only:
+    - /usr
+    - /lib
+    - /proc
+    - /dev/urandom
+    - /app
+    - /etc
+    - /var/log
+  read_write:
+    - /tmp
+    - /dev/null
+    - /sandbox/.cuga
+    - /sandbox/.nemoclaw
+    - /home/linuxbrew
+
+landlock:
+  compatibility: best_effort
+
+process:
+  run_as_user: sandbox
+  run_as_group: sandbox
+
+network_policies:
+
+  nvidia:
+    name: nvidia
+    endpoints:
+      - host: integrate.api.nvidia.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: inference-api.nvidia.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+    binaries:
+      - { path: "/**" }
+
+  github:
+    name: github
+    endpoints:
+      - host: github.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: api.github.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: raw.githubusercontent.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+    binaries:
+      - { path: "/**" }
+
+  cuga_project:
+    name: cuga_project
+    endpoints:
+      - host: cuga-project.github.io
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+    binaries:
+      - { path: "/**" }
+
+  pypi:
+    name: pypi
+    endpoints:
+      - host: pypi.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+      - host: files.pythonhosted.org
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+    binaries:
+      - { path: "/**" }
+
+  # ── Web Agent egress (Playwright browses arbitrary sites by design) ──
+  # In production, narrow this to specific allowlisted hosts per workflow.
+  web_browse:
+    name: web_browse
+    endpoints:
+      - host: "*"
+        port: 443
+        protocol: rest
+        enforcement: monitor
+        access: full
+    binaries:
+      - { path: "/**" }
+
+  # ── Common LLM / tool provider hosts the API Agent calls ──
+  openai:
+    name: openai
+    endpoints:
+      - host: api.openai.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+    binaries:
+      - { path: "/**" }
+
+  anthropic:
+    name: anthropic
+    endpoints:
+      - host: api.anthropic.com
+        port: 443
+        protocol: rest
+        enforcement: enforce
+        access: full
+    binaries:
+      - { path: "/**" }

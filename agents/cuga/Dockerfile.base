@@ -1,0 +1,139 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# CUGA sandbox base image — expensive, rarely-changing layers.
+#
+# Contains: node:22-trixie-slim (OpenShell needs Node at runtime), apt
+# packages, gosu, sandbox/gateway user setup, /sandbox/.cuga directory
+# structure, Python toolchain via uv, and CUGA itself.
+#
+# Mirrors agents/hermes/Dockerfile.base but installs the cuga-project
+# Python package (and Playwright/Chromium for the Web Agent) instead of
+# the hermes-agent.
+#
+# ── When to rebuild ─────────────────────────────────────────────
+#   1. CUGA version bump        — change CUGA_VERSION below
+#   2. New apt package needed   — add it to the apt-get install list
+#   3. gosu upgrade             — update URL, checksum, and version
+#   4. New .cuga subdirectory   — add mkdir/chmod below
+#   5. Playwright bump          — uv lock will pick it up; image rebuild
+# ────────────────────────────────────────────────────────────────
+
+FROM node:22-trixie-slim@sha256:2d9f5c76c8f4dd36e8f253bee5d828a83a6c09f36188f0b0414325232e0b175d
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# CUGA version pin — bump to release new sandbox base images.
+ARG CUGA_VERSION=0.1.0
+ARG UV_VERSION=0.11.8
+
+# System dependencies shared with Hermes base image so the OpenShell
+# wrapper, network policy enforcement, and credential separation work
+# identically across agents.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python3=3.13.5-1 \
+        python3-pip=25.1.1+dfsg-1 \
+        python3-venv=3.13.5-1 \
+        curl=8.14.1-2+deb13u3 \
+        git=1:2.47.3-0+deb13u1 \
+        gnupg=2.4.7-21+deb13u1 \
+        ca-certificates=20250419 \
+        iproute2=6.15.0-1 \
+        iptables=1.8.11-2 \
+        libcap2-bin=1:2.75-10+deb13u1+b1 \
+        procps=2:4.0.4-9 \
+        e2fsprogs=1.47.2-3+b11 \
+        openssh-sftp-server=1:10.0p1-7+deb13u4 \
+        socat=1.8.0.3-1 \
+        "dos2unix=7.5.2-1*" \
+        jq=1.7.1-6+deb13u2 \
+        vim-tiny=2:9.1.1230-2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# gosu — privilege separation between gateway (root-owned setup) and
+# sandbox (agent process). Identical pin/checksum to Hermes base.
+# hadolint ignore=DL4006
+RUN arch="$(dpkg --print-architecture)" \
+    && case "$arch" in \
+        amd64) gosu_asset="gosu-amd64"; gosu_sha256="52c8749d0142edd234e9d6bd5237dff2d81e71f43537e2f4f66f75dd4b243dd0" ;; \
+        arm64) gosu_asset="gosu-arm64"; gosu_sha256="3a8ef022d82c0bc4a98bcb144e77da714c25fcfa64dccc57f6aba7ae47ff1a44" ;; \
+        *) echo "Unsupported architecture for gosu: $arch" >&2; exit 1 ;; \
+    esac \
+    && curl -fsSL -o /usr/local/bin/gosu "https://github.com/tianon/gosu/releases/download/1.19/${gosu_asset}" \
+    && echo "${gosu_sha256}  /usr/local/bin/gosu" | sha256sum -c - \
+    && chmod +x /usr/local/bin/gosu \
+    && gosu --version
+
+# Same user/group layout as Hermes/OpenClaw bases: sandbox runs the
+# agent process; gateway owns NemoClaw-managed runtime state the agent
+# must not be able to tamper with.
+RUN groupadd -r sandbox \
+    && groupadd -r gateway \
+    && useradd -r -g gateway -G sandbox -d /sandbox -s /usr/sbin/nologin gateway \
+    && useradd -r -g sandbox -d /sandbox -s /bin/bash sandbox \
+    && usermod -a -G sandbox root \
+    && mkdir -p /sandbox/.nemoclaw \
+    && chown -R sandbox:sandbox /sandbox
+
+# Layout mirrors agents/cuga/manifest.yaml state_dirs.
+# /sandbox/.cuga/runtime is gateway-owned so the agent cannot rewrite
+# managed state (config hash, session metadata, plan checkpoints).
+RUN mkdir -p /sandbox/.cuga/plans \
+        /sandbox/.cuga/sessions \
+        /sandbox/.cuga/knowledge \
+        /sandbox/.cuga/mcp_servers \
+        /sandbox/.cuga/playbooks \
+        /sandbox/.cuga/workspace \
+        /sandbox/.cuga/logs \
+        /sandbox/.cuga/cache \
+        /sandbox/.cuga/credentials \
+        /sandbox/.cuga/runtime \
+    && chown -R sandbox:sandbox /sandbox/.cuga \
+    && chown gateway:sandbox /sandbox/.cuga/runtime \
+    && chmod 3770 /sandbox/.cuga \
+    && chmod 770 \
+        /sandbox/.cuga/plans \
+        /sandbox/.cuga/sessions \
+        /sandbox/.cuga/knowledge \
+        /sandbox/.cuga/mcp_servers \
+        /sandbox/.cuga/playbooks \
+        /sandbox/.cuga/workspace \
+        /sandbox/.cuga/logs \
+        /sandbox/.cuga/cache \
+        /sandbox/.cuga/credentials \
+    && chmod 2770 /sandbox/.cuga/runtime
+
+# Shell rc files — source the NemoClaw runtime proxy env on every
+# interactive `openshell sandbox connect` session.
+# hadolint ignore=SC2016
+RUN printf '%s\n' \
+        '# Source runtime proxy + CUGA_HOME config' \
+        '[ -f /tmp/nemoclaw-proxy-env.sh ] && . /tmp/nemoclaw-proxy-env.sh' \
+        'export PATH="/usr/local/bin:/opt/cuga/.venv/bin:${PATH}"' \
+        'export CUGA_HOME=/sandbox/.cuga' \
+        > /sandbox/.bashrc \
+    && cp /sandbox/.bashrc /sandbox/.profile \
+    && chown root:root /sandbox/.bashrc /sandbox/.profile \
+    && chmod 444 /sandbox/.bashrc /sandbox/.profile
+
+# Install CUGA via uv. We create a venv at /opt/cuga/.venv and let uv
+# manage the dependency tree. Playwright + Chromium are installed for
+# the Web Agent; if unused they sit idle on disk.
+RUN pip3 install --no-cache-dir --break-system-packages "uv==${UV_VERSION}"
+RUN mkdir -p /opt/cuga \
+    && cd /opt/cuga \
+    && uv venv \
+    && . .venv/bin/activate \
+    && uv pip install --no-cache "cuga==${CUGA_VERSION}" \
+                                "langchain-core" \
+                                "langchain-openai" \
+                                "playwright" \
+                                "docling" \
+                                "uvicorn" \
+                                "fastapi" \
+    && playwright install --with-deps chromium \
+    && ln -sf /opt/cuga/.venv/bin/cuga /usr/local/bin/cuga
+
+ENV PATH="/usr/local/bin:/opt/cuga/.venv/bin:${PATH}"
+ENV CUGA_HOME=/sandbox/.cuga
+RUN /usr/local/bin/cuga --version || echo "[warn] cuga --version not implemented in ${CUGA_VERSION}"

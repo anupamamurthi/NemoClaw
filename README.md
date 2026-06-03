@@ -16,6 +16,7 @@ It provides guided onboarding, a hardened blueprint, routed inference, network p
 
 - [OpenClaw](https://openclaw.ai) (default)
 - [Hermes](https://get-hermes.ai/)
+- [CUGA](https://github.com/cuga-project/cuga-agent) — added in this branch; see the [CUGA integration docs](./docs/cuga-integration/README.md)
 
 For capabilities, architecture, security controls, and the full feature list, see the [NemoClaw documentation](https://docs.nvidia.com/nemoclaw/latest/).
 
@@ -23,11 +24,25 @@ For capabilities, architecture, security controls, and the full feature list, se
 
 Review [Prerequisites](https://docs.nvidia.com/nemoclaw/latest/get-started/prerequisites.html) before installing.
 For Hermes, set `NEMOCLAW_AGENT=hermes` before running the installer, or use the `nemohermes` alias after install.
+For CUGA, set `NEMOCLAW_AGENT=cuga` or use the `nemocuga` alias.
 
 | Agent | Guide |
 |-------|-------|
 | OpenClaw (default) | [Quickstart with OpenClaw](https://docs.nvidia.com/nemoclaw/latest/get-started/quickstart.html) |
 | Hermes | [Quickstart with Hermes](https://docs.nvidia.com/nemoclaw/latest/get-started/quickstart-hermes.html) |
+| CUGA | [Try it locally](./docs/cuga-integration/04-try-it-locally.md) |
+
+## CUGA integration (this branch)
+
+This branch adds CUGA as a third supported agent. See the [CUGA integration documentation index](./docs/cuga-integration/README.md):
+
+| Doc | What it covers |
+|-----|----------------|
+| [Overview](./docs/cuga-integration/01-overview.md) | What CUGA is and why it fits NemoClaw |
+| [Existing architecture](./docs/cuga-integration/02-existing-architecture.md) | NemoClaw's agent plugin contract, lifecycle, branding |
+| [New architecture](./docs/cuga-integration/03-new-architecture.md) | What changed when CUGA was added — every file and why |
+| [Try it locally](./docs/cuga-integration/04-try-it-locally.md) | Dev setup, build, and how to run the CUGA tests |
+| [Example: Recipe Composer (CUGA vs Hermes)](./examples/recipe-composer/README.md) | Runnable example — same workflow, both agents, deterministic tests, head-to-head comparison |
 
 ## Documentation
 

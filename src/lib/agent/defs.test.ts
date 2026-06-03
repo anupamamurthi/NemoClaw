@@ -100,6 +100,54 @@ describe("agent definitions", () => {
     expect(choices.map((choice) => choice.name)).toContain("hermes");
   });
 
+  it("loads CUGA manifest properties as a third built-in agent", () => {
+    const cuga = loadAgent("cuga");
+
+    expect(cuga.name).toBe("cuga");
+    expect(cuga.displayName).toBe("CUGA");
+    expect(cuga.hasDevicePairing).toBe(false);
+    expect(cuga.configPaths).toEqual({
+      dir: "/sandbox/.cuga",
+      configFile: "settings.yaml",
+      envFile: ".env",
+      format: "yaml",
+    });
+    expect(cuga.healthProbe.url).toBe("http://localhost:8005/health");
+    expect(cuga.healthProbe.port).toBe(8005);
+    expect(cuga.forwardPort).toBe(8005);
+    expect(cuga.dashboard).toEqual({
+      kind: "ui",
+      label: "CUGA Web UI",
+      path: "/",
+    });
+    // CUGA does not register a custom inference provider plugin —
+    // it talks to any OpenAI-compatible base URL via LiteLLM.
+    expect(cuga.inferenceProviderOptions).toEqual([]);
+    // CUGA has no native messaging integrations; its surface is REST/MCP + Web Agent.
+    expect(cuga.messagingPlatforms).toEqual([]);
+    expect(cuga.policyPermissivePath).toMatch(/agents\/cuga\/policy-permissive\.yaml$/);
+  });
+
+  it("includes CUGA in interactive agent choices alongside OpenClaw and Hermes", () => {
+    const names = getAgentChoices().map((choice) => choice.name);
+    expect(names).toContain("cuga");
+    expect(names).toContain("hermes");
+    expect(names).toContain("openclaw");
+    expect(names[0]).toBe("openclaw");
+    // Remaining entries are alphabetical: cuga before hermes.
+    expect(names.indexOf("cuga")).toBeLessThan(names.indexOf("hermes"));
+  });
+
+  it("resolves cuga via NEMOCLAW_AGENT env var", () => {
+    process.env.NEMOCLAW_AGENT = "cuga";
+    expect(resolveAgentName()).toBe("cuga");
+  });
+
+  it("resolves cuga via explicit agentFlag overriding env", () => {
+    process.env.NEMOCLAW_AGENT = "hermes";
+    expect(resolveAgentName({ agentFlag: "cuga" })).toBe("cuga");
+  });
+
   it("falls back to openclaw when session references an unknown agent", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 

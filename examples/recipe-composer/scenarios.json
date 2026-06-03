@@ -1,0 +1,54 @@
+{
+  "_comment": "Deterministic transcripts used by both agent runners to enable apples-to-apples comparison. Each scenario sets state via tool calls, then asks for recipe ideas. The 'expected' block lists invariants the final state must satisfy — exact recipe titles are LLM-discretion and are NOT asserted.",
+
+  "scenarios": [
+    {
+      "name": "weeknight_vegetarian",
+      "thread_id": "scenario-veg-001",
+      "turns": [
+        "I have chicken breast, rice, broccoli, garlic, olive oil, and lemon at home.",
+        "I'm vegetarian. Also a bit allergic to almonds.",
+        "Can you suggest a few dinner ideas for tonight?"
+      ],
+      "expected": {
+        "pantry_includes":        ["chicken breast", "rice", "broccoli", "garlic", "olive oil", "lemon"],
+        "diet":                   "vegetarian",
+        "allergies":              ["almonds"],
+        "recipes_saved_min":      1,
+        "recipes_saved_max":      6,
+        "no_recipe_uses_any":     ["chicken breast", "almonds"],
+        "must_have_called_tool":  ["add_to_pantry", "set_diet", "add_allergy",
+                                   "list_pantry", "check_diet_compatibility", "save_recipes"]
+      }
+    },
+    {
+      "name": "keto_minimal_pantry",
+      "thread_id": "scenario-keto-002",
+      "turns": [
+        "Pantry: salmon, spinach, eggs, butter, olive oil, cheese.",
+        "I'm on keto.",
+        "Three quick dinner ideas please."
+      ],
+      "expected": {
+        "pantry_includes":   ["salmon", "spinach", "egg", "butter", "olive oil", "cheese"],
+        "diet":              "keto",
+        "allergies":         [],
+        "recipes_saved_min": 1,
+        "no_recipe_uses_any": ["rice", "pasta", "bread", "potato", "banana"],
+        "must_have_called_tool": ["add_to_pantry", "set_diet",
+                                  "list_pantry", "check_diet_compatibility", "save_recipes"]
+      }
+    },
+    {
+      "name": "macro_lookup",
+      "thread_id": "scenario-macro-003",
+      "turns": [
+        "What's the rough protein content of 200g of chicken breast?"
+      ],
+      "expected": {
+        "must_have_called_tool": ["estimate_macros"],
+        "_note": "Pure lookup; no recipe save required."
+      }
+    }
+  ]
+}

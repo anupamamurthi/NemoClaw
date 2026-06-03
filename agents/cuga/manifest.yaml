@@ -1,0 +1,101 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Agent manifest for CUGA (Configurable Generalist Agent — IBM Research / cuga-project).
+# Declares the integration contract between NemoClaw and the sandboxed agent.
+# CUGA is a composable multi-agent harness: Planner + Code Agent + API Agent +
+# Web Agent, with OpenAPI/MCP tool loading, a Policies SDK, and a Knowledge
+# Engine. See https://github.com/cuga-project/cuga-agent.
+
+name: cuga
+display_name: "CUGA"
+description: "Composable multi-agent harness for web+API+code tasks (cuga-project)"
+version_constraint: ">=0.1.0"
+language: python
+license: Apache-2.0
+homepage: "https://github.com/cuga-project/cuga-agent"
+
+# ── Binary & process ────────────────────────────────────────────
+install_method: pip   # pip install cuga (or `uv pip install`)
+binary_path: /usr/local/bin/cuga
+version_command: "cuga --version"
+expected_version: "0.1.0"
+# Launched via agents/cuga/start.sh inside the sandbox, which generates
+# the API key, forwards ports, drops privileges, and exec's:
+#   cuga server start --config /sandbox/.cuga/settings.yaml
+gateway_command: "/usr/local/bin/nemoclaw-start"
+
+# ── Health probe ────────────────────────────────────────────────
+# CUGA's FastAPI server exposes GET /health by default on 8005.
+health_probe:
+  url: "http://localhost:8005/health"
+  port: 8005
+  timeout_seconds: 90
+
+# ── Dashboard / UI ──────────────────────────────────────────────
+# CUGA ships a browser-based chat UI served from the same FastAPI app.
+dashboard:
+  kind: ui
+  label: "CUGA Web UI"
+  path: "/"
+forward_ports:
+  - 8005
+
+# ── Configuration ───────────────────────────────────────────────
+config:
+  dir: /sandbox/.cuga
+  config_file: settings.yaml
+  env_file: .env
+  format: yaml
+
+# ── State directories ──────────────────────────────────────────
+# CUGA persists plans, tool registries (mcp_servers.yaml), and the
+# Knowledge Engine (Docling) RAG indexes under its config dir.
+state_dirs:
+  - plans
+  - sessions
+  - knowledge
+  - mcp_servers
+  - workspace
+  - logs
+  - cache
+  - credentials
+
+# ── Authentication ──────────────────────────────────────────────
+# CUGA's web UI auth is a bearer token via the CUGA_API_KEY env var.
+device_pairing: false
+web_auth_method: bearer_token
+web_auth_env: CUGA_API_KEY
+
+# ── Messaging platforms ─────────────────────────────────────────
+# CUGA does not ship native messaging integrations — its surface area
+# is REST/OpenAPI/MCP tools and a browser-based Web Agent.
+messaging_platforms:
+  supported: []
+
+# ── Inference ───────────────────────────────────────────────────
+# CUGA uses LiteLLM and accepts any OpenAI-compatible base URL,
+# which is how we route through OpenShell's inference.local proxy.
+inference:
+  provider_type: custom
+  base_url_config_key: "model.base_url"
+  model_config_key: "model.default"
+  proxy_support: implicit  # via httpx (LiteLLM dep)
+  # No provider_options — CUGA points at any OpenAI-compatible base URL
+  # (including OpenShell's inference.local proxy) without a custom provider
+  # plugin in the NemoClaw onboarding flow.
+
+# ── Phone-home hosts ───────────────────────────────────────────
+# Egress endpoints needed for CUGA updates, docs, and the CUGA Studio.
+phone_home_hosts:
+  - cuga-project.github.io
+  - github.com
+  - api.github.com
+
+# ── Package registry ───────────────────────────────────────────
+# CUGA uses pip for skill/MCP-server installs.
+package_registry:
+  hosts:
+    - pypi.org
+    - files.pythonhosted.org
+  binary: /usr/local/bin/pip3
